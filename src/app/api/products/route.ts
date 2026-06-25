@@ -1,8 +1,16 @@
 import { prisma } from "@/app/lib/prisma";
 
 
-export async function GET() {
-  const products = await prisma.product.findMany();
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+
+  const category = searchParams.get("category");
+
+  const products = await prisma.product.findMany({
+    where: {
+      ...(category ? { category } : {}),
+    },
+  });
 
   return Response.json(products);
 }
