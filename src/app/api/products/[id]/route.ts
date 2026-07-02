@@ -1,4 +1,11 @@
 import { prisma } from "@/app/lib/prisma";
+import { ProductSchema } from "@/lib/validations/product";
+
+// Reusable helper — parse and validate the :id URL param
+function parseId(id: string) {
+  const numericId = parseInt(id);
+  return isNaN(numericId) ? null : numericId;
+}
 
 // GET /api/products/:id — fetch a single product by ID
 export async function GET(
@@ -6,12 +13,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const numericId = parseInt(id);
+  const numericId = parseId(id);
+
+  // Validate: id must be a real number
+  if (numericId === null) {
+    return Response.json({ error: "Invalid ID" }, { status: 400 });
+  }
 
   const product = await prisma.product.findUnique({
     where: { id: numericId },
   });
 
+  // Validate: product must exist
   if (!product) {
     return Response.json({ error: "Product not found" }, { status: 404 });
   }
@@ -25,16 +38,36 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const numericId = parseInt(id);
+  const numericId = parseId(id);
+
+  // Validate: id must be a real number
+  if (numericId === null) {
+    return Response.json({ error: "Invalid ID" }, { status: 400 });
+  }
+
   const body = await request.json();
+
+  // Validate body with Zod — .partial() makes all fields optional for updates
+  const result = ProductSchema.partial().safeParse(body);
+
+  if (!result.success) {
+    return Response.json(
+      { errors: result.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  // Also guard: at least one field must be provided
+  if (Object.keys(result.data).length === 0) {
+    return Response.json(
+      { error: "Provide at least one field to update" },
+      { status: 400 }
+    );
+  }
 
   const product = await prisma.product.update({
     where: { id: numericId },
-    data: {
-      name: body.name,
-      price: body.price,
-      category: body.category,
-    },
+    data: result.data,
   });
 
   return Response.json(product);
@@ -46,7 +79,21 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const numericId = parseInt(id);
+  const numericId = parseId(id);
+
+  // Validate: id must be a real number
+  if (numericId === null) {
+    return Response.json({ error: "Invalid ID" }, { status: 400 });
+  }
+
+  // Guard: check it exists before deleting
+  const existing = await prisma.product.findUnique({
+    where: { id: numericId },
+  });
+
+  if (!existing) {
+    return Response.json({ error: "Product not found" }, { status: 404 });
+  }
 
   await prisma.product.delete({
     where: { id: numericId },

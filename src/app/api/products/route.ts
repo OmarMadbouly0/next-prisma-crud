@@ -1,8 +1,24 @@
 import { prisma } from "@/app/lib/prisma";
 import { ProductSchema } from "@/lib/validations/product";
 
-export async function GET() {
-  const products = await prisma.product.findMany();
+export async function GET(request: Request) {
+  // Parse query params from the URL
+  const { searchParams } = new URL(request.url);
+  const category = searchParams.get("category");
+
+  // Validate: if category is provided, it must not be an empty string
+  if (category !== null && category.trim() === "") {
+    return Response.json(
+      { error: "category query param cannot be empty" },
+      { status: 400 }
+    );
+  }
+
+  const products = await prisma.product.findMany({
+    where: {
+      ...(category ? { category } : {}),
+    },
+  });
 
   return Response.json(products);
 }
