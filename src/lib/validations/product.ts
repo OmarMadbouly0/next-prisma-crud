@@ -2,12 +2,12 @@ import { z } from "zod";
 
 export const ProductSchema = z.object({
   name: z
-    .string()
+    .string({ message: "Name is required" })
     .min(3, "Name must be at least 3 characters")
     .max(100, "Name must not exceed 100 characters"),
 
   price: z
-    .number()
+    .number({ message: "Price is required" })
     .positive("Price must be greater than 0")
     .max(999999, "Price must not exceed 999,999")
     .refine(
@@ -18,7 +18,7 @@ export const ProductSchema = z.object({
   // categoryId replaces the old "category" string field
   // It's a foreign key — must reference an existing Category row
   categoryId: z
-    .number()
+    .number({ message: "Category ID is required" })
     .int("Category ID must be an integer")
     .positive("Category ID must be a positive number"),
 });

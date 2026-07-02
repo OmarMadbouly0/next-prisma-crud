@@ -49,13 +49,20 @@ export async function POST(request: Request) {
     return Response.json(product, { status: 201 });
   } catch (error) {
     if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2003"
+      error instanceof Prisma.PrismaClientKnownRequestError
     ) {
-      return Response.json(
-        { error: "Category not found" },
-        { status: 404 }
-      );
+      if (error.code === "P2003") {
+        return Response.json(
+          { error: "Category not found" },
+          { status: 404 }
+        );
+      }
+      if (error.code === "P2002") {
+        return Response.json(
+          { error: "A product with this name already exists in this category" },
+          { status: 409 }
+        );
+      }
     }
     throw error;
   }
