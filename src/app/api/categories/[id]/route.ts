@@ -1,5 +1,5 @@
 import { prisma } from "@/app/lib/prisma";
-import { ProductSchema } from "@/lib/validations/product";
+import { CategorySchema } from "@/lib/validations/category";
 import { Prisma } from "@prisma/client";
 
 function parseId(id: string) {
@@ -7,7 +7,7 @@ function parseId(id: string) {
   return isNaN(numericId) ? null : numericId;
 }
 
-// GET /api/products/:id — fetch a single product with its category
+// GET /api/categories/:id — fetch one category with its products
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -19,19 +19,19 @@ export async function GET(
     return Response.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-  const product = await prisma.product.findUnique({
+  const category = await prisma.category.findUnique({
     where: { id: numericId },
-    include: { category: true },
+    // include: { products: true } ← include products if you want to see them
   });
 
-  if (!product) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
+  if (!category) {
+    return Response.json({ error: "Category not found" }, { status: 404 });
   }
 
-  return Response.json(product);
+  return Response.json(category);
 }
 
-// PUT /api/products/:id — update an existing product
+// PUT /api/categories/:id — update a category name
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -44,7 +44,7 @@ export async function PUT(
   }
 
   const body = await request.json();
-  const result = ProductSchema.partial().safeParse(body);
+  const result = CategorySchema.partial().safeParse(body);
 
   if (!result.success) {
     return Response.json({ errors: result.error.flatten() }, { status: 400 });
@@ -57,37 +57,37 @@ export async function PUT(
     );
   }
 
-  const existing = await prisma.product.findUnique({
+  const existing = await prisma.category.findUnique({
     where: { id: numericId },
   });
 
   if (!existing) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
+    return Response.json({ error: "Category not found" }, { status: 404 });
   }
 
   try {
-    const product = await prisma.product.update({
+    const category = await prisma.category.update({
       where: { id: numericId },
       data: result.data,
-      include: { category: true },
     });
 
-    return Response.json(product);
+    return Response.json(category);
   } catch (error) {
+    // Catch duplicate name on update
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2003"
+      error.code === "P2002"
     ) {
       return Response.json(
-        { error: "Category not found" },
-        { status: 404 }
+        { error: "A category with this name already exists" },
+        { status: 409 }
       );
     }
     throw error;
   }
 }
 
-// DELETE /api/products/:id — delete a product
+// DELETE /api/categories/:id — delete a category
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -99,15 +99,29 @@ export async function DELETE(
     return Response.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-  const existing = await prisma.product.findUnique({
+  const existing = await prisma.category.findUnique({
     where: { id: numericId },
   });
 
   if (!existing) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
+    return Response.json({ error: "Category not found" }, { status: 404 });
   }
 
-  await prisma.product.delete({ where: { id: numericId } });
-
-  return Response.json({ message: "Product deleted successfully" });
+  try {
+    await prisma.category.delete({ where: { id: numericId } });
+    return Response.json({ message: "Category deleted successfully" });
+  } catch (error) {
+    // Prisma P2003 = foreign key constraint violation
+    // ON DELETE RESTRICT means you can't delete a category that still has products
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    ) {
+      return Response.json(
+        { error: "Cannot delete category: it still has products assigned to it" },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 }

@@ -15,10 +15,12 @@ export const ProductSchema = z.object({
       "Price must have at most 2 decimal places"
     ),
 
-  category: z
-    .string()
-    .min(3, "Category must be at least 3 characters")
-    .max(100, "Category must not exceed 100 characters"),
+  // categoryId replaces the old "category" string field
+  // It's a foreign key — must reference an existing Category row
+  categoryId: z
+    .number()
+    .int("Category ID must be an integer")
+    .positive("Category ID must be a positive number"),
 });
 
 // Used for POST — all fields required
