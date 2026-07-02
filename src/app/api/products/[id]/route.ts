@@ -65,6 +65,16 @@ export async function PUT(
     );
   }
 
+  // Guard: check product exists before updating
+  // prisma.update() throws (not returns null) if record not found
+  const existing = await prisma.product.findUnique({
+    where: { id: numericId },
+  });
+
+  if (!existing) {
+    return Response.json({ error: "Product not found" }, { status: 404 });
+  }
+
   const product = await prisma.product.update({
     where: { id: numericId },
     data: result.data,

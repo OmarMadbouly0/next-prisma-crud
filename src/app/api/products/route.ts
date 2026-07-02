@@ -1,6 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import { ProductSchema } from "@/lib/validations/product";
 
+//Get All
 export async function GET(request: Request) {
   // Parse query params from the URL
   const { searchParams } = new URL(request.url);
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   return Response.json(products);
 }
 
+//Create One
 export async function POST(request: Request) {
   const body = await request.json();
 
