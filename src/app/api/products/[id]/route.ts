@@ -1,64 +1,42 @@
-import { prisma } from "@/app/lib/prisma";
 import { ProductSchema } from "@/lib/validations/product";
-import {
-  categoryExists,
-  errorResponse,
-  isProductNameTaken,
-  validateBody,
-  withEntity,
-} from "@/lib/api-helpers";
+import { productService } from "@/services/product.service";
+import { handleError, parseBody, parseId } from "@/lib/http";
 
-const findProduct = (id: number) =>
-  prisma.product.findUnique({
-    where: { id },
-    include: { category: true },
-  });
+type RouteContext = { params: Promise<{ id: string }> };
 
 // GET /api/products/:id — fetch a single product with its category
-export const GET = withEntity("Product", findProduct, async ({ entity }) =>
-  Response.json(entity)
-);
+export async function GET(request: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const product = await productService.getById(parseId(id));
+    return Response.json(product);
+  } catch (error) {
+    return handleError(error);
+  }
+}
 
 // PUT /api/products/:id — update an existing product
-export const PUT = withEntity(
-  "Product",
-  findProduct,
-  async ({ id, entity, request }) => {
-    const data = await validateBody(request, ProductSchema.partial(), {
+export async function PUT(request: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const productId = parseId(id);
+    const data = await parseBody(request, ProductSchema.partial(), {
       rejectEmpty: true,
     });
-    if (data instanceof Response) return data;
-
-    const { name, price, categoryId } = data;
-
-    if (categoryId !== undefined && !(await categoryExists(categoryId))) {
-      return errorResponse("Category not found", 404);
-    }
-
-    if (name !== undefined || categoryId !== undefined) {
-      const mergedName = name ?? entity.name;
-      const mergedCategoryId = categoryId ?? entity.categoryId;
-
-      if (await isProductNameTaken(mergedName, mergedCategoryId, id)) {
-        return errorResponse(
-          "A product with this name already exists in this category",
-          409
-        );
-      }
-    }
-
-    const product = await prisma.product.update({
-      where: { id },
-      data: { name, price, categoryId },
-      include: { category: true },
-    });
-
+    const product = await productService.update(productId, data);
     return Response.json(product);
+  } catch (error) {
+    return handleError(error);
   }
-);
+}
 
 // DELETE /api/products/:id — delete a product
-export const DELETE = withEntity("Product", findProduct, async ({ id }) => {
-  await prisma.product.delete({ where: { id } });
-  return Response.json({ message: "Product deleted successfully" });
-});
+export async function DELETE(request: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    await productService.delete(parseId(id));
+    return Response.json({ message: "Product deleted successfully" });
+  } catch (error) {
+    return handleError(error);
+  }
+}

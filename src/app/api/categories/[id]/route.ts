@@ -1,56 +1,42 @@
-import { prisma } from "@/app/lib/prisma";
 import { CategorySchema } from "@/lib/validations/category";
-import {
-  categoryHasProducts,
-  errorResponse,
-  isCategoryNameTaken,
-  validateBody,
-  withEntity,
-} from "@/lib/api-helpers";
+import { categoryService } from "@/services/category.service";
+import { handleError, parseBody, parseId } from "@/lib/http";
 
-const findCategory = (id: number) =>
-  prisma.category.findUnique({ where: { id } });
+type RouteContext = { params: Promise<{ id: string }> };
 
 // GET /api/categories/:id — fetch one category
-export const GET = withEntity("Category", findCategory, async ({ entity }) =>
-  Response.json(entity)
-);
+export async function GET(request: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const category = await categoryService.getById(parseId(id));
+    return Response.json(category);
+  } catch (error) {
+    return handleError(error);
+  }
+}
 
 // PUT /api/categories/:id — update a category name
-export const PUT = withEntity(
-  "Category",
-  findCategory,
-  async ({ id, request }) => {
-    const data = await validateBody(request, CategorySchema.partial(), {
+export async function PUT(request: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const categoryId = parseId(id);
+    const data = await parseBody(request, CategorySchema.partial(), {
       rejectEmpty: true,
     });
-    if (data instanceof Response) return data;
-
-    if (
-      data.name !== undefined &&
-      (await isCategoryNameTaken(data.name, id))
-    ) {
-      return errorResponse("A category with this name already exists", 409);
-    }
-
-    const category = await prisma.category.update({
-      where: { id },
-      data,
-    });
-
+    const category = await categoryService.update(categoryId, data);
     return Response.json(category);
+  } catch (error) {
+    return handleError(error);
   }
-);
+}
 
 // DELETE /api/categories/:id — delete a category
-export const DELETE = withEntity("Category", findCategory, async ({ id }) => {
-  if (await categoryHasProducts(id)) {
-    return errorResponse(
-      "Cannot delete category: it still has products assigned to it",
-      409
-    );
+export async function DELETE(request: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    await categoryService.delete(parseId(id));
+    return Response.json({ message: "Category deleted successfully" });
+  } catch (error) {
+    return handleError(error);
   }
-
-  await prisma.category.delete({ where: { id } });
-  return Response.json({ message: "Category deleted successfully" });
-});
+}

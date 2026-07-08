@@ -1,32 +1,24 @@
-import { prisma } from "@/app/lib/prisma";
 import { CategorySchema } from "@/lib/validations/category";
-import {
-  errorResponse,
-  isCategoryNameTaken,
-  validateBody,
-} from "@/lib/api-helpers";
+import { categoryService } from "@/services/category.service";
+import { handleError, parseBody } from "@/lib/http";
 
 // GET /api/categories — list all categories
 export async function GET() {
-  const categories = await prisma.category.findMany({
-    orderBy: { name: "asc" },
-  });
-
-  return Response.json(categories);
+  try {
+    const categories = await categoryService.list();
+    return Response.json(categories);
+  } catch (error) {
+    return handleError(error);
+  }
 }
 
 // POST /api/categories — create a new category
 export async function POST(request: Request) {
-  const data = await validateBody(request, CategorySchema);
-  if (data instanceof Response) return data;
-
-  if (await isCategoryNameTaken(data.name)) {
-    return errorResponse("A category with this name already exists", 409);
+  try {
+    const data = await parseBody(request, CategorySchema);
+    const category = await categoryService.create(data);
+    return Response.json(category, { status: 201 });
+  } catch (error) {
+    return handleError(error);
   }
-
-  const category = await prisma.category.create({
-    data,
-  });
-
-  return Response.json(category, { status: 201 });
 }

@@ -7,4 +7,10 @@ export const CategorySchema = z.object({
     .max(50, "Category name must not exceed 50 characters"),
 });
 
+// Used for POST — name required
 export type CategoryInput = z.infer<typeof CategorySchema>;
+
+// Used for PUT — all fields optional
+export type CategoryUpdateInput = z.infer<
+  ReturnType<typeof CategorySchema.partial>
+>;
