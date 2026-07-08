@@ -1,120 +1,64 @@
 import { prisma } from "@/app/lib/prisma";
 import { ProductSchema } from "@/lib/validations/product";
-import { Prisma } from "@prisma/client";
+import {
+  categoryExists,
+  errorResponse,
+  isProductNameTaken,
+  validateBody,
+  withEntity,
+} from "@/lib/api-helpers";
 
-function parseId(id: string) {
-  const numericId = parseInt(id);
-  return isNaN(numericId) ? null : numericId;
-}
-
-// GET /api/products/:id — fetch a single product with its category
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const numericId = parseId(id);
-
-  if (numericId === null) {
-    return Response.json({ error: "Invalid ID" }, { status: 400 });
-  }
-
-  const product = await prisma.product.findUnique({
-    where: { id: numericId },
+const findProduct = (id: number) =>
+  prisma.product.findUnique({
+    where: { id },
     include: { category: true },
   });
 
-  if (!product) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
-  }
-
-  return Response.json(product);
-}
+// GET /api/products/:id — fetch a single product with its category
+export const GET = withEntity("Product", findProduct, async ({ entity }) =>
+  Response.json(entity)
+);
 
 // PUT /api/products/:id — update an existing product
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const numericId = parseId(id);
+export const PUT = withEntity(
+  "Product",
+  findProduct,
+  async ({ id, entity, request }) => {
+    const data = await validateBody(request, ProductSchema.partial(), {
+      rejectEmpty: true,
+    });
+    if (data instanceof Response) return data;
 
-  if (numericId === null) {
-    return Response.json({ error: "Invalid ID" }, { status: 400 });
-  }
+    const { name, price, categoryId } = data;
 
-  const body = await request.json();
-  const result = ProductSchema.partial().safeParse(body);
+    if (categoryId !== undefined && !(await categoryExists(categoryId))) {
+      return errorResponse("Category not found", 404);
+    }
 
-  if (!result.success) {
-    return Response.json({ errors: result.error.flatten() }, { status: 400 });
-  }
+    if (name !== undefined || categoryId !== undefined) {
+      const mergedName = name ?? entity.name;
+      const mergedCategoryId = categoryId ?? entity.categoryId;
 
-  if (Object.keys(result.data).length === 0) {
-    return Response.json(
-      { error: "Provide at least one field to update" },
-      { status: 400 }
-    );
-  }
+      if (await isProductNameTaken(mergedName, mergedCategoryId, id)) {
+        return errorResponse(
+          "A product with this name already exists in this category",
+          409
+        );
+      }
+    }
 
-  const existing = await prisma.product.findUnique({
-    where: { id: numericId },
-  });
-
-  if (!existing) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
-  }
-
-  try {
     const product = await prisma.product.update({
-      where: { id: numericId },
-      data: result.data,
+      where: { id },
+      data: { name, price, categoryId },
       include: { category: true },
     });
 
     return Response.json(product);
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError
-    ) {
-      if (error.code === "P2003") {
-        return Response.json(
-          { error: "Category not found" },
-          { status: 404 }
-        );
-      }
-      if (error.code === "P2002") {
-        return Response.json(
-          { error: "A product with this name already exists in this category" },
-          { status: 409 }
-        );
-      }
-    }
-    throw error;
   }
-}
+);
 
 // DELETE /api/products/:id — delete a product
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-  const numericId = parseId(id);
-
-  if (numericId === null) {
-    return Response.json({ error: "Invalid ID" }, { status: 400 });
-  }
-
-  const existing = await prisma.product.findUnique({
-    where: { id: numericId },
-  });
-
-  if (!existing) {
-    return Response.json({ error: "Product not found" }, { status: 404 });
-  }
-
-  await prisma.product.delete({ where: { id: numericId } });
-
+export const DELETE = withEntity("Product", findProduct, async ({ id }) => {
+  await prisma.product.delete({ where: { id } });
   return Response.json({ message: "Product deleted successfully" });
-}
+});

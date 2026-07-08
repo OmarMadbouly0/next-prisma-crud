@@ -11,7 +11,7 @@ export const ProductSchema = z.object({
     .positive("Price must be greater than 0")
     .max(999999, "Price must not exceed 999,999")
     .refine(
-      (val) => Math.round(val * 100) === val * 100,
+      (val) => Math.abs(Math.round(val * 100) - val * 100) < 1e-9,
       "Price must have at most 2 decimal places"
     ),
 

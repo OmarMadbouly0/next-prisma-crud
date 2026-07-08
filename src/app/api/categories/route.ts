@@ -1,6 +1,10 @@
 import { prisma } from "@/app/lib/prisma";
 import { CategorySchema } from "@/lib/validations/category";
-import { Prisma } from "@prisma/client";
+import {
+  errorResponse,
+  isCategoryNameTaken,
+  validateBody,
+} from "@/lib/api-helpers";
 
 // GET /api/categories — list all categories
 export async function GET() {
@@ -13,31 +17,16 @@ export async function GET() {
 
 // POST /api/categories — create a new category
 export async function POST(request: Request) {
-  const body = await request.json();
-  const result = CategorySchema.safeParse(body);
+  const data = await validateBody(request, CategorySchema);
+  if (data instanceof Response) return data;
 
-  if (!result.success) {
-    return Response.json({ errors: result.error.flatten() }, { status: 400 });
+  if (await isCategoryNameTaken(data.name)) {
+    return errorResponse("A category with this name already exists", 409);
   }
 
-  try {
-    const category = await prisma.category.create({
-      data: result.data,
-    });
+  const category = await prisma.category.create({
+    data,
+  });
 
-    return Response.json(category, { status: 201 });
-  } catch (error) {
-    // Prisma error code P2002 = unique constraint violation
-    // This fires when you try to create a category with a name that already exists
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      return Response.json(
-        { error: "A category with this name already exists" },
-        { status: 409 } // 409 Conflict
-      );
-    }
-    throw error;
-  }
+  return Response.json(category, { status: 201 });
 }
