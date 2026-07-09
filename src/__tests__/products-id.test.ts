@@ -60,6 +60,25 @@ describe("GET /api/products/:id", () => {
     expect(data.category).toHaveProperty("name", "Electronics");
   });
 
+  it("increments the view counter on each fetch (response reflects this view)", async () => {
+    const product = await createProduct(); // starts at views: 0
+
+    const first = await GET(makeGetRequest(String(product.id)), makeParams(String(product.id)));
+    expect((await first.json()).views).toBe(1);
+
+    const second = await GET(makeGetRequest(String(product.id)), makeParams(String(product.id)));
+    expect((await second.json()).views).toBe(2);
+
+    // Persisted, not just returned
+    const stored = await prisma.product.findUnique({ where: { id: product.id } });
+    expect(stored?.views).toBe(2);
+  });
+
+  it("does not increment views for a non-existent product (404)", async () => {
+    const res = await GET(makeGetRequest("99999"), makeParams("99999"));
+    expect(res.status).toBe(404);
+  });
+
   it("returns 404 when product does not exist", async () => {
     const res = await GET(makeGetRequest("99999"), makeParams("99999"));
     expect(res.status).toBe(404);
@@ -68,6 +87,23 @@ describe("GET /api/products/:id", () => {
   it("returns 400 when id is not a number", async () => {
     const res = await GET(makeGetRequest("abc"), makeParams("abc"));
     expect(res.status).toBe(400);
+  });
+
+  it("returns 400 (not 500) when id exceeds the Int4 range", async () => {
+    // Would previously crash inside Prisma when binding to an INTEGER column
+    const huge = "99999999999999999999";
+    const res = await GET(makeGetRequest(huge), makeParams(huge));
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when id is just above the Int4 max", async () => {
+    const res = await GET(makeGetRequest("2147483648"), makeParams("2147483648"));
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 for the Int4 max itself (valid id, no such row)", async () => {
+    const res = await GET(makeGetRequest("2147483647"), makeParams("2147483647"));
+    expect(res.status).toBe(404);
   });
 });
 
@@ -152,12 +188,12 @@ describe("PUT /api/products/:id", () => {
 
 // ─── DELETE /api/products/:id ─────────────────────────────────────────────────
 describe("DELETE /api/products/:id", () => {
-  it("returns 200 and actually removes the product", async () => {
+  it("returns 204 and actually removes the product", async () => {
     const product = await createProduct();
 
     const res = await DELETE(makeDeleteRequest(String(product.id)), makeParams(String(product.id)));
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
     const gone = await prisma.product.findUnique({ where: { id: product.id } });
     expect(gone).toBeNull();
   });

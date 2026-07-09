@@ -11,11 +11,10 @@ model Product {
   id         Int      @id @default(autoincrement())
   name       String
   price      Float
-  categoryId Int                     
+  views      Int      @default(0)
+  categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
   createdAt  DateTime @default(now())
-
-  @@unique([name, categoryId])
 }
 
 model Category {

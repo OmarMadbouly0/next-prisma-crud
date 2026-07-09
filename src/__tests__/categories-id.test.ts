@@ -173,7 +173,7 @@ describe("PUT /api/categories/:id", () => {
 
 // ─── DELETE /api/categories/:id ───────────────────────────────────────────────
 describe("DELETE /api/categories/:id", () => {
-  it("returns 200 and actually removes the category", async () => {
+  it("returns 204 and actually removes the category", async () => {
     const category = await createCategory();
 
     const res = await DELETE(
@@ -181,7 +181,7 @@ describe("DELETE /api/categories/:id", () => {
       makeParams(String(category.id))
     );
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
     const gone = await prisma.category.findUnique({ where: { id: category.id } });
     expect(gone).toBeNull();
   });
@@ -215,7 +215,7 @@ describe("DELETE /api/categories/:id", () => {
     expect(stillThere).not.toBeNull();
   });
 
-  it("returns 200 once the category's products have been removed", async () => {
+  it("returns 204 once the category's products have been removed", async () => {
     const category = await createCategory();
     const product = await prisma.product.create({
       data: { name: "Laptop", price: 999.99, categoryId: category.id },
@@ -227,6 +227,6 @@ describe("DELETE /api/categories/:id", () => {
       makeParams(String(category.id))
     );
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
   });
 });

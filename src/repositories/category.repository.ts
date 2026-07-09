@@ -6,10 +6,15 @@ import type { Prisma } from "@prisma/client";
  * no business rules, no HTTP concerns.
  */
 export const categoryRepository = {
-  findMany() {
+  findMany(page?: { limit: number; offset: number }) {
     return prisma.category.findMany({
       orderBy: { name: "asc" },
+      ...(page ? { take: page.limit, skip: page.offset } : {}),
     });
+  },
+
+  count() {
+    return prisma.category.count();
   },
 
   findById(id: number) {

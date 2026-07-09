@@ -1,8 +1,9 @@
 import { ProductSchema } from "@/lib/validations/product";
 import { productService } from "@/services/product.service";
-import { handleError, parseBody } from "@/lib/http";
+import { handleError, parseBody, parsePagination } from "@/lib/http";
 
-// GET /api/products — list products, optionally filtered by ?category=<name>
+// GET /api/products — paged list ({ data, total, limit, offset }),
+// optionally filtered by ?category=<name>
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,8 +16,9 @@ export async function GET(request: Request) {
       );
     }
 
-    const products = await productService.list(category ?? undefined);
-    return Response.json(products);
+    const page = parsePagination(searchParams);
+    const result = await productService.list(category ?? undefined, page);
+    return Response.json(result);
   } catch (error) {
     return handleError(error);
   }

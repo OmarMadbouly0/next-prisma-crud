@@ -29,20 +29,21 @@ beforeEach(async () => {
 
 // ─── GET /api/products ────────────────────────────────────────────────────────
 describe("GET /api/products", () => {
-  it("returns 200 and an empty array when no products exist", async () => {
+  it("returns 200 and an empty page when no products exist", async () => {
     const res = await GET(makeGetRequest());
 
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const { data, total } = await res.json();
     expect(Array.isArray(data)).toBe(true);
     expect(data).toHaveLength(0);
+    expect(total).toBe(0);
   });
 
   it("returns products with the correct shape (id, name, price, categoryId, category, createdAt)", async () => {
     await POST(makePostRequest({ name: "Laptop", price: 999.99, categoryId }));
 
     const res = await GET(makeGetRequest());
-    const data = await res.json();
+    const { data } = await res.json();
 
     expect(data).toHaveLength(1);
     expect(data[0]).toHaveProperty("id");
@@ -61,15 +62,39 @@ describe("GET /api/products", () => {
     await POST(makePostRequest({ name: "Novel", price: 15, categoryId: booksCategory.id }));
 
     const res = await GET(makeGetRequest("?category=Electronics"));
-    const data = await res.json();
+    const { data, total } = await res.json();
 
     expect(data).toHaveLength(1);
     expect(data[0].category.name).toBe("Electronics");
+    expect(total).toBe(1); // total respects the filter
+  });
+
+  it("paginates with ?limit= and ?offset= in stable id order", async () => {
+    await POST(makePostRequest({ name: "Product A", price: 1, categoryId }));
+    await POST(makePostRequest({ name: "Product B", price: 2, categoryId }));
+    await POST(makePostRequest({ name: "Product C", price: 3, categoryId }));
+
+    const res = await GET(makeGetRequest("?limit=2&offset=2"));
+    const { data, total } = await res.json();
+
+    expect(data).toHaveLength(1); // only one item left on page 2
+    expect(data[0].name).toBe("Product C");
+    expect(total).toBe(3);
   });
 
   it("returns 400 when ?category= is an empty string", async () => {
     const res = await GET(makeGetRequest("?category="));
     expect(res.status).toBe(400);
+  });
+
+  it("does not increment views when listing products", async () => {
+    await POST(makePostRequest({ name: "Laptop", price: 999.99, categoryId }));
+
+    await GET(makeGetRequest());
+    await GET(makeGetRequest());
+
+    const [product] = await prisma.product.findMany();
+    expect(product.views).toBe(0);
   });
 });
 
@@ -85,6 +110,21 @@ describe("POST /api/products", () => {
     expect(data.categoryId).toBe(categoryId);
     // Should embed the category object
     expect(data.category.name).toBe("Electronics");
+  });
+
+  // ── Body Parsing ──
+  it("returns 400 (not 500) when the body is not valid JSON", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "not-json{",
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("Request body must be valid JSON");
   });
 
   // ── Name Validation ──

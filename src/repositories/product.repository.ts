@@ -6,16 +6,34 @@ import type { Prisma } from "@prisma/client";
  * table via Prisma — no business rules, no HTTP concerns.
  */
 export const productRepository = {
-  findMany(where?: Prisma.ProductWhereInput) {
+  findMany(where?: Prisma.ProductWhereInput, page?: { limit: number; offset: number }) {
     return prisma.product.findMany({
       where,
       include: { category: true },
+      // Stable order is required for pagination to not skip/repeat rows.
+      orderBy: { id: "asc" },
+      ...(page ? { take: page.limit, skip: page.offset } : {}),
     });
+  },
+
+  count(where?: Prisma.ProductWhereInput) {
+    return prisma.product.count({ where });
   },
 
   findById(id: number) {
     return prisma.product.findUnique({
       where: { id },
+      include: { category: true },
+    });
+  },
+
+  // Atomically bump the view counter (SET views = views + 1) and return the
+  // updated row. Atomic increment avoids the lost-update race of read-then-write.
+  // Throws Prisma P2025 if no product with this id exists.
+  incrementViews(id: number) {
+    return prisma.product.update({
+      where: { id },
+      data: { views: { increment: 1 } },
       include: { category: true },
     });
   },

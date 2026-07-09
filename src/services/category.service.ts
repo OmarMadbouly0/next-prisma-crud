@@ -5,6 +5,7 @@ import type {
   CategoryInput,
   CategoryUpdateInput,
 } from "@/lib/validations/category";
+import type { Pagination } from "@/lib/http";
 
 /**
  * Category business logic. Enforces unique names and the "can't delete a
@@ -12,8 +13,14 @@ import type {
  * or Prisma details leak in here.
  */
 export const categoryService = {
-  list() {
-    return categoryRepository.findMany();
+  // Paged list: returns the page plus the total for client-side page controls.
+  async list(page: Pagination) {
+    const [data, total] = await Promise.all([
+      categoryRepository.findMany(page),
+      categoryRepository.count(),
+    ]);
+
+    return { data, total, limit: page.limit, offset: page.offset };
   },
 
   async getById(id: number) {

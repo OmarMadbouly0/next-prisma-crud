@@ -38,3 +38,14 @@ export class ConflictError extends AppError {
     super(message, 409);
   }
 }
+
+// Structural check for coded errors (e.g. Prisma's P2003/P2025), avoiding a
+// runtime dependency on the Prisma error classes outside the data layer.
+export function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === code
+  );
+}

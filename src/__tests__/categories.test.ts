@@ -4,6 +4,10 @@ import { prisma } from "@/app/lib/prisma";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function makeGetRequest(queryString = "") {
+  return new Request(`http://localhost/api/categories${queryString}`);
+}
+
 function makePostRequest(body: unknown) {
   return new Request("http://localhost/api/categories", {
     method: "POST",
@@ -14,20 +18,21 @@ function makePostRequest(body: unknown) {
 
 // ─── GET /api/categories ──────────────────────────────────────────────────────
 describe("GET /api/categories", () => {
-  it("returns 200 and an empty array when no categories exist", async () => {
-    const res = await GET();
+  it("returns 200 and an empty page when no categories exist", async () => {
+    const res = await GET(makeGetRequest());
 
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const { data, total } = await res.json();
     expect(Array.isArray(data)).toBe(true);
     expect(data).toHaveLength(0);
+    expect(total).toBe(0);
   });
 
   it("returns categories with the correct shape (id, name, createdAt)", async () => {
     await POST(makePostRequest({ name: "Electronics" }));
 
-    const res = await GET();
-    const data = await res.json();
+    const res = await GET(makeGetRequest());
+    const { data } = await res.json();
 
     expect(data).toHaveLength(1);
     expect(data[0]).toHaveProperty("id");
@@ -40,14 +45,38 @@ describe("GET /api/categories", () => {
     await POST(makePostRequest({ name: "Books" }));
     await POST(makePostRequest({ name: "Electronics" }));
 
-    const res = await GET();
-    const data = await res.json();
+    const res = await GET(makeGetRequest());
+    const { data } = await res.json();
 
     expect(data.map((c: { name: string }) => c.name)).toEqual([
       "Books",
       "Electronics",
       "Toys",
     ]);
+  });
+
+  it("respects ?limit= and ?offset= and reports the true total", async () => {
+    await POST(makePostRequest({ name: "Books" }));
+    await POST(makePostRequest({ name: "Electronics" }));
+    await POST(makePostRequest({ name: "Toys" }));
+
+    const res = await GET(makeGetRequest("?limit=2&offset=1"));
+    const { data, total, limit, offset } = await res.json();
+
+    expect(data.map((c: { name: string }) => c.name)).toEqual([
+      "Electronics",
+      "Toys",
+    ]);
+    expect(total).toBe(3);
+    expect(limit).toBe(2);
+    expect(offset).toBe(1);
+  });
+
+  it("returns 400 for an invalid limit", async () => {
+    expect((await GET(makeGetRequest("?limit=0"))).status).toBe(400);
+    expect((await GET(makeGetRequest("?limit=101"))).status).toBe(400);
+    expect((await GET(makeGetRequest("?limit=abc"))).status).toBe(400);
+    expect((await GET(makeGetRequest("?offset=-1"))).status).toBe(400);
   });
 });
 
@@ -67,6 +96,16 @@ describe("POST /api/categories", () => {
   it("returns 400 when name is missing", async () => {
     const res = await POST(makePostRequest({}));
     expect(res.status).toBe(400);
+  });
+
+  it("trims whitespace, so ' Books ' conflicts with existing 'Books'", async () => {
+    await POST(makePostRequest({ name: "Books" }));
+
+    const res = await POST(makePostRequest({ name: "  Books  " }));
+    expect(res.status).toBe(409);
+
+    const count = await prisma.category.count();
+    expect(count).toBe(1);
   });
 
   it("returns 400 when name is not a string", async () => {

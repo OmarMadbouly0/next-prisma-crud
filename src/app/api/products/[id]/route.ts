@@ -35,7 +35,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
     await productService.delete(parseId(id));
-    return Response.json({ message: "Product deleted successfully" });
+    return new Response(null, { status: 204 });
   } catch (error) {
     return handleError(error);
   }

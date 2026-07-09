@@ -1,12 +1,14 @@
 import { CategorySchema } from "@/lib/validations/category";
 import { categoryService } from "@/services/category.service";
-import { handleError, parseBody } from "@/lib/http";
+import { handleError, parseBody, parsePagination } from "@/lib/http";
 
-// GET /api/categories — list all categories
-export async function GET() {
+// GET /api/categories — paged list ({ data, total, limit, offset })
+export async function GET(request: Request) {
   try {
-    const categories = await categoryService.list();
-    return Response.json(categories);
+    const { searchParams } = new URL(request.url);
+    const page = parsePagination(searchParams);
+    const result = await categoryService.list(page);
+    return Response.json(result);
   } catch (error) {
     return handleError(error);
   }

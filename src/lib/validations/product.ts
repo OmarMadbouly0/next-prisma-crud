@@ -3,6 +3,7 @@ import { z } from "zod";
 export const ProductSchema = z.object({
   name: z
     .string({ message: "Name is required" })
+    .trim()
     .min(3, "Name must be at least 3 characters")
     .max(100, "Name must not exceed 100 characters"),
 
