@@ -36,6 +36,8 @@ Match the existing history (see `git log --oneline`): conventional-commit prefix
 
 Subject line ≤ 72 chars. Add a short body only when the *why* isn't obvious from the diff.
 
+Do **not** add `Co-Authored-By` trailers (or any other trailer) to commit messages — Omar wants clean messages with no attribution lines.
+
 ## 4. Commit and push
 
 - Commit directly on `main` (this is a solo learning repo; that is its convention).
